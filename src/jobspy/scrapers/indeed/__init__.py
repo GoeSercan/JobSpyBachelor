@@ -19,6 +19,8 @@ from ..utils import (
     markdown_converter,
     create_session,
     create_logger,
+    connect_db,
+    insert_job_data
 )
 from ...jobs import (
     JobPost,
@@ -70,20 +72,33 @@ class IndeedScraper(Scraper):
 
         cursor = None
 
-        while len(self.seen_urls) < scraper_input.results_wanted + scraper_input.offset:
-            logger.info(
-                f"search page: {page} / {math.ceil(scraper_input.results_wanted / self.jobs_per_page)}"
-            )
-            jobs, cursor = self._scrape_page(cursor)
-            if not jobs:
-                logger.info(f"found no jobs on page: {page}")
-                break
-            job_list += jobs
-            page += 1
+        # Establish a database connection
+        connection = connect_db()
+        if not connection:
+            logger.error("Database connection could not be established.")
+            return JobResponse(jobs=[])  # Return empty response if connection fails
+
+        try:
+            while len(self.seen_urls) < scraper_input.results_wanted + scraper_input.offset:
+                logger.info(
+                    f"search page: {page} / {math.ceil(scraper_input.results_wanted / self.jobs_per_page)}"
+                )
+                jobs, cursor = self._scrape_page(cursor)
+                if not jobs:
+                    logger.info(f"found no jobs on page: {page}")
+                    break
+                job_list += jobs
+                page += 1
+        finally:
+            # Close the connection after all jobs are processed
+            connection.close()
+            logger.info("Database connection closed after scraping.")
+
+        # Return JobResponse with jobs from job_list
         return JobResponse(
             jobs=job_list[
-                scraper_input.offset : scraper_input.offset
-                + scraper_input.results_wanted
+                 scraper_input.offset: scraper_input.offset
+                 + scraper_input.results_wanted
             ]
         )
 
