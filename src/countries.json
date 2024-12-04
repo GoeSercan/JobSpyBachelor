@@ -1,0 +1,16 @@
+{
+  "indeed_glassdoor": [
+    "Australia", "Austria", "Belgium", "Brazil", "Canada", "France", "Germany",
+    "Hong Kong", "India", "Ireland", "Italy", "Mexico", "Netherlands", "New Zealand",
+    "Singapore", "Spain", "Switzerland", "UK", "USA", "Vietnam"
+  ],
+  "indeed_only": [
+    "Argentina", "Bahrain", "Chile", "China", "Colombia", "Costa Rica",
+    "Czech Republic", "Denmark", "Ecuador", "Egypt", "Finland", "Greece",
+    "Hungary", "Indonesia", "Israel", "Japan", "Kuwait", "Luxembourg", "Malaysia",
+    "Morocco", "Nigeria", "Norway", "Oman", "Pakistan", "Panama", "Peru",
+    "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Saudi Arabia",
+    "South Africa", "South Korea", "Sweden", "Taiwan", "Thailand", "Turkey",
+    "Ukraine", "United Arab Emirates", "Uruguay", "Venezuela"
+  ]
+}
