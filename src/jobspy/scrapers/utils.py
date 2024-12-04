@@ -283,3 +283,119 @@ def extract_job_type(description: str):
             listing_types.append(key)
 
     return listing_types if listing_types else None
+
+
+def connect_db():
+    try:
+        connection = psycopg2.connect(
+            dbname="job_listings",
+            user="job_user",
+            password="your_password",  # SHOULD MATCH THE ACTUAL PASSWORD
+            host="localhost"
+        )
+        return connection
+    except Exception as e:
+        print("Database connection failed:",e)
+        return None
+
+
+    def insert_job_data(conn, job):
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO jobs (
+                    job_id, site, job_url, job_url_direct, title, company, location,
+                    date_posted, job_type, salary_source, interval, min_amount,
+                    max_amount, currency, is_remote, job_level, job_function,
+                    listing_type, emails, description, company_industry, company_url,
+                    company_logo, company_url_direct, company_addresses,
+                    company_num_employees, company_revenue, company_description
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
+                ON CONFLICT (job_id) DO NOTHING;
+            """, (
+                job.get('id'), job.get('site'), job.get('job_url'), job.get('job_url_direct'),
+                job.get('title'), job.get('company'), job.get('location'), job.get('date_posted'),
+                job.get('job_type'), job.get('salary_source'), job.get('interval'), job.get('min_amount'),
+                job.get('max_amount'), job.get('currency'), job.get('is_remote'), job.get('job_level'),
+                job.get('job_function'), job.get('listing_type'), job.get('emails'), job.get('description'),
+                job.get('company_industry'), job.get('company_url'), job.get('company_logo'),
+                job.get('company_url_direct'), job.get('company_addresses'), job.get('company_num_employees'),
+                job.get('company_revenue'), job.get('company_description')
+            ))
+
+
+def is_valid_job(job):
+    """
+    Check if any key field is NaN and return a dictionary with the status.
+    """
+    status = {
+        "title": pd.notna(job.get("title")),
+        "company": pd.notna(job.get("company")),
+        "description": pd.notna(job.get("description"))
+    }
+    return status, all(status.values())  # Return dict with each status and overall validity
+
+
+def fetch_duplicate_job(connection, title, company, description):
+    """
+    Check if the job with the specified composite key already exists.
+    If it exists, fetch and return it for comparison; otherwise, return None.
+    """
+    query = """
+    SELECT job_id, title, company, description FROM jobs
+    WHERE title = %s AND company = %s AND description = %s
+    LIMIT 1
+    """
+    cursor = connection.cursor()
+    cursor.execute(query, (title, company, description))
+    return cursor.fetchone()  # Returns the duplicate job if found, otherwise None
+
+
+def insert_unique_job_data(connection, job, duplicate_count):
+    """
+    Insert job data only if it is valid and does not exist in the database.
+    Provides a detailed, visually aligned output if the entry is skipped.
+    """
+    validity_status, is_valid = is_valid_job(job)
+    if not is_valid:
+        # Skip validation for LinkedIn jobs
+        if job.get("site") == "linkedin":
+            print("Skipping detailed validation for LinkedIn job.")
+        else:
+            missing_fields = [field for field, valid in validity_status.items() if not valid]
+            print(f"Skipped job due to missing values in fields: {', '.join(missing_fields)}")
+            return False
+
+    # Check if job already exists based on composite key
+    duplicate_job = fetch_duplicate_job(connection, job["title"], job["company"], job["description"])
+    if duplicate_job:
+        # Display the new job and existing job in a side-by-side format with alignment
+        print(f"\nDuplicate #{duplicate_count} for this country")
+        print("=" * 80)
+        print(f"{'New Job':<38} | {'Existing Job in Database'}")
+        print("-" * 80)
+
+        # Truncate fields to 25 characters and add ellipses if needed
+        new_title = (job['title'][:22] + '...') if len(job['title']) > 25 else job['title']
+        new_company = (job['company'][:22] + '...') if len(job['company']) > 25 else job['company']
+        new_desc = (job['description'][:22] + '...') if len(job['description']) > 25 else job['description']
+
+        existing_title = (duplicate_job[1][:22] + '...') if len(duplicate_job[1]) > 25 else duplicate_job[1]
+        existing_company = (duplicate_job[2][:22] + '...') if len(duplicate_job[2]) > 25 else duplicate_job[2]
+        existing_desc = (duplicate_job[3][:22] + '...') if len(duplicate_job[3]) > 25 else duplicate_job[3]
+
+        # Print job attributes side by side with fixed width alignment
+        print(f"Title:       {new_title:<25} | Title:       {existing_title:<25}")
+        print(f"Company:     {new_company:<25} | Company:     {existing_company:<25}")
+        # print(f"Description: {new_desc:<25} | Description: {existing_desc:<25}")
+        print("=" * 80)
+        duplicate_count += 1
+
+        return False
+    else:
+        # If valid and unique, insert job data
+        insert_job_data(connection, job)
+        return True
+
