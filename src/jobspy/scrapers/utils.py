@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import os
+import psycopg2
+import json
+from datetime import datetime
+import pandas as pd
+
 import re
 import logging
 from itertools import cycle
@@ -290,7 +296,7 @@ def connect_db():
         connection = psycopg2.connect(
             dbname="job_listings",
             user="job_user",
-            password="your_password",  # SHOULD MATCH THE ACTUAL PASSWORD
+            password="your_password",  # Ensure this matches the actual password
             host="localhost"
         )
         return connection
@@ -298,32 +304,33 @@ def connect_db():
         print("Database connection failed:",e)
         return None
 
+def insert_job_data(conn, job):
+    with conn.cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO jobs (
+                job_id, site, job_url, job_url_direct, title, company, location,
+                date_posted, job_type, salary_source, interval, min_amount,
+                max_amount, currency, is_remote, job_level, job_function,
+                listing_type, emails, description, company_industry, company_url,
+                company_logo, company_url_direct, company_addresses,
+                company_num_employees, company_revenue, company_description
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
+            ON CONFLICT (job_id) DO NOTHING;
+        """, (
+            job.get('id'), job.get('site'), job.get('job_url'), job.get('job_url_direct'),
+            job.get('title'), job.get('company'), job.get('location'), job.get('date_posted'),
+            job.get('job_type'), job.get('salary_source'), job.get('interval'), job.get('min_amount'),
+            job.get('max_amount'), job.get('currency'), job.get('is_remote'), job.get('job_level'),
+            job.get('job_function'), job.get('listing_type'), job.get('emails'), job.get('description'),
+            job.get('company_industry'), job.get('company_url'), job.get('company_logo'),
+            job.get('company_url_direct'), job.get('company_addresses'), job.get('company_num_employees'),
+            job.get('company_revenue'), job.get('company_description')
+        ))
 
-    def insert_job_data(conn, job):
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO jobs (
-                    job_id, site, job_url, job_url_direct, title, company, location,
-                    date_posted, job_type, salary_source, interval, min_amount,
-                    max_amount, currency, is_remote, job_level, job_function,
-                    listing_type, emails, description, company_industry, company_url,
-                    company_logo, company_url_direct, company_addresses,
-                    company_num_employees, company_revenue, company_description
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                )
-                ON CONFLICT (job_id) DO NOTHING;
-            """, (
-                job.get('id'), job.get('site'), job.get('job_url'), job.get('job_url_direct'),
-                job.get('title'), job.get('company'), job.get('location'), job.get('date_posted'),
-                job.get('job_type'), job.get('salary_source'), job.get('interval'), job.get('min_amount'),
-                job.get('max_amount'), job.get('currency'), job.get('is_remote'), job.get('job_level'),
-                job.get('job_function'), job.get('listing_type'), job.get('emails'), job.get('description'),
-                job.get('company_industry'), job.get('company_url'), job.get('company_logo'),
-                job.get('company_url_direct'), job.get('company_addresses'), job.get('company_num_employees'),
-                job.get('company_revenue'), job.get('company_description')
-            ))
+
 
 
 def is_valid_job(job):
@@ -399,3 +406,20 @@ def insert_unique_job_data(connection, job, duplicate_count):
         insert_job_data(connection, job)
         return True
 
+
+def log_to_file(message, log_file="scraping_log.txt"):
+    """Log messages to a file."""
+    with open(log_file, "a") as file:
+        file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
+
+def save_offsets(offsets, offset_file="offsets.json"):
+    """Save current offsets to file."""
+    with open(offset_file, "w") as f:
+        json.dump(offsets, f, indent=4)
+
+def load_offsets(offset_file="offsets.json"):
+    """Load offsets from file or initialize if it doesn't exist."""
+    if os.path.exists(offset_file):
+        with open(offset_file, "r") as f:
+            return json.load(f)
+    return {}
