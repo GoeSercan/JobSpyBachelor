@@ -407,19 +407,27 @@ def insert_unique_job_data(connection, job, duplicate_count):
         return True
 
 
-def log_to_file(message, log_file="scraping_log.txt"):
-    """Log messages to a file."""
-    with open(log_file, "a") as file:
+def log_to_file(message, logfile):
+    """Function to log messages to the log file with a timestamp."""
+    with open(logfile, "a") as file:
         file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
+
 
 def save_offsets(offsets, offset_file="offsets.json"):
     """Save current offsets to file."""
     with open(offset_file, "w") as f:
         json.dump(offsets, f, indent=4)
 
-def load_offsets(offset_file="offsets.json"):
-    """Load offsets from file or initialize if it doesn't exist."""
+def load_offsets(offset_file, search_terms, countries_indeed_glassdoor, countries_indeed_only):
+    """Load offsets from file or initialize them if file doesn't exist."""
     if os.path.exists(offset_file):
-        with open(offset_file, "r") as f:
+        with open(offset_file, 'r') as f:
             return json.load(f)
-    return {}
+    return {
+        country: {"indeed": {term: {"offset": 0, "total_count": 0, "no_results_count": 0} for term in search_terms},
+                  "glassdoor": {term: {"offset": 0, "total_count": 0, "no_results_count": 0} for term in search_terms}}
+        for country in countries_indeed_glassdoor
+    } | {
+        country: {"indeed": {term: {"offset": 0, "total_count": 0, "no_results_count": 0} for term in search_terms}}
+        for country in countries_indeed_only
+    }
