@@ -1,3 +1,23 @@
+This repository is a fork of JobSpy, originally developed by Bunsly.
+This fork introduces enhancements and adjustments tailored to collecting data more efficiently, including:
+
+Resilient Scraping Logic: Improved error handling and retry mechanisms to maximize job data collection efficiency.
+Custom Logging and Progress Tracking: A robust logging system and tracking via JSON-based offsets to ensure seamless monitoring.
+
+**Purpose and Use Cases**
+This fork was developed to:
+Gain hands-on experience with web scraping, data extraction, and proxy integration.
+Demonstrate problem-solving skills by addressing challenges in secure scraping environments.
+Collect data for analysis in my bachelor thesis.
+
+Technology Stack
+Python: Core language for scripting and backend logic.
+PostgreSQL: Database used for storing and managing scraped job data.
+Bright Data Proxies: Integrated for scalable, secure, and reliable proxy support.
+
+Below the Original Readme file contents with the original description of the scraper.
+
+
 <img src="https://github.com/cullenwatson/JobSpy/assets/78247585/ae185b7e-e444-4712-8bb9-fa97f53e896b" width="400">
 
 **JobSpy** is a simple, yet comprehensive, job scraping library.
