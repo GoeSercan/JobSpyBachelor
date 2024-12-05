@@ -202,12 +202,20 @@ def save_jobs_to_database(jobs, connection):
 
     # Iterate through each job and attempt to insert into the database
     for job in jobs.to_dict(orient="records"):
-        if insert_unique_job_data(connection, job, 1): # Avoid duplicate entries
-            jobs_added += 1
-            daily_job_count += 1
-            unique_jobs_added += 1
-            connection.commit()
-            log_to_file(f"Job saved to database: ID={job['id']}", LOG_FILE) # Log the action for each commit
+        try:
+
+            if insert_unique_job_data(connection, job, 1, LOG_FILE): # Avoid duplicate entries
+                jobs_added += 1
+                daily_job_count += 1
+                unique_jobs_added += 1
+                connection.commit()
+                log_to_file(f"Job saved to database: ID={job['id']}", LOG_FILE) # Log the action for each commit
+        except Exception as e:
+            connection.rollback() #rollback transaction in case of error
+            log_to_file(f"Error saving job to database: {e}", LOG_FILE)
+            print(f"Error: Failed to save job ID {job.get('id', 'Unknown')} due to {e}")
+            continue  # Skip to the next job
+
 
     print(f"Added {unique_jobs_added} unique jobs to the database.")
     return unique_jobs_added
