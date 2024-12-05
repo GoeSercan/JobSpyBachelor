@@ -360,7 +360,7 @@ def fetch_duplicate_job(connection, title, company, description):
     return cursor.fetchone()  # Returns the duplicate job if found, otherwise None
 
 
-def insert_unique_job_data(connection, job, duplicate_count):
+def insert_unique_job_data(connection, job, duplicate_count, logfile):
     """
     Insert job data only if it is valid and does not exist in the database.
     Provides a detailed, visually aligned output if the entry is skipped.
@@ -375,36 +375,40 @@ def insert_unique_job_data(connection, job, duplicate_count):
             print(f"Skipped job due to missing values in fields: {', '.join(missing_fields)}")
             return False
 
-    # Check if job already exists based on composite key
-    duplicate_job = fetch_duplicate_job(connection, job["title"], job["company"], job["description"])
-    if duplicate_job:
-        # Display the new job and existing job in a side-by-side format with alignment
-        print(f"\nDuplicate #{duplicate_count} for this country")
-        print("=" * 80)
-        print(f"{'New Job':<38} | {'Existing Job in Database'}")
-        print("-" * 80)
+    try:
+        # Check if job already exists based on composite key
+        duplicate_job = fetch_duplicate_job(connection, job["title"], job["company"], job["description"])
+        if duplicate_job:
+            # Display the new job and existing job in a side-by-side format with alignment
+            print(f"\nDuplicate #{duplicate_count} for this country")
+            print("=" * 80)
+            print(f"{'New Job':<38} | {'Existing Job in Database'}")
+            print("-" * 80)
 
-        # Truncate fields to 25 characters and add ellipses if needed
-        new_title = (job['title'][:22] + '...') if len(job['title']) > 25 else job['title']
-        new_company = (job['company'][:22] + '...') if len(job['company']) > 25 else job['company']
-        new_desc = (job['description'][:22] + '...') if len(job['description']) > 25 else job['description']
+            # Truncate fields
+            new_title = (job['title'][:22] + '...') if len(job['title']) > 25 else job['title']
+            new_company = (job['company'][:22] + '...') if len(job['company']) > 25 else job['company']
+            new_desc = (job['description'][:22] + '...') if len(job['description']) > 25 else job['description']
 
-        existing_title = (duplicate_job[1][:22] + '...') if len(duplicate_job[1]) > 25 else duplicate_job[1]
-        existing_company = (duplicate_job[2][:22] + '...') if len(duplicate_job[2]) > 25 else duplicate_job[2]
-        existing_desc = (duplicate_job[3][:22] + '...') if len(duplicate_job[3]) > 25 else duplicate_job[3]
+            existing_title = (duplicate_job[1][:22] + '...') if len(duplicate_job[1]) > 25 else duplicate_job[1]
+            existing_company = (duplicate_job[2][:22] + '...') if len(duplicate_job[2]) > 25 else duplicate_job[2]
+            existing_desc = (duplicate_job[3][:22] + '...') if len(duplicate_job[3]) > 25 else duplicate_job[3]
 
-        # Print job attributes side by side with fixed width alignment
-        print(f"Title:       {new_title:<25} | Title:       {existing_title:<25}")
-        print(f"Company:     {new_company:<25} | Company:     {existing_company:<25}")
-        # print(f"Description: {new_desc:<25} | Description: {existing_desc:<25}")
-        print("=" * 80)
-        duplicate_count += 1
+            # Print job attributes side by side with fixed width alignment
+            print(f"Title:       {new_title:<25} | Title:       {existing_title:<25}")
+            print(f"Company:     {new_company:<25} | Company:     {existing_company:<25}")
+            # print(f"Description: {new_desc:<25} | Description: {existing_desc:<25}")
+            print("=" * 80)
+            duplicate_count += 1
 
-        return False
-    else:
-        # If valid and unique, insert job data
+            return False
+
         insert_job_data(connection, job)
         return True
+
+    except Exception as e:
+        log_to_file(f"Error inserting job data: {e} | Job: {job}", logfile)
+        return False
 
 
 def log_to_file(message, logfile):

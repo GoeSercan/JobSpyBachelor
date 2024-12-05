@@ -8,3 +8,5 @@
 *.pyc
 .env
 dist
+src/offsets.json
+src/scraping_log.txt
