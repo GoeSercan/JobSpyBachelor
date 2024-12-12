@@ -4,6 +4,22 @@ import os
 proxieslist = []  # Global list for dynamic proxy use
 
 
+def validate_proxy_config(ca_cert_path, proxy_url):
+    """Ensure proxy and certificate configurations are valid."""
+    if not os.path.exists(ca_cert_path):
+        raise FileNotFoundError(f"CA certificate file missing at: {ca_cert_path}")
+
+    try:
+        print(f"Testing proxy connectivity using: {proxy_url}")
+        test_url = "https://geo.brdtest.com/welcome.txt"
+        response = requests.get(test_url, proxies={"http": proxy_url, "https": proxy_url}, verify=ca_cert_path)
+        if response.status_code == 200:
+            print("Proxy validation successful.")
+        else:
+            raise ConnectionError(f"Proxy validation failed with status code: {response.status_code}")
+    except Exception as e:
+        raise ConnectionError(f"Proxy validation failed: {e}")
+
 def test_proxy(proxy_url, ca_cert_path):
     """Check if proxy is working."""
     test_url = "https://geo.brdtest.com/welcome.txt"
