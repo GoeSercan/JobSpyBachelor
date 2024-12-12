@@ -4,12 +4,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Load sensitive data
+# Load proxy data
 BRD_USER = os.getenv("BRD_USER")
 BRD_ZONE = os.getenv("BRD_ZONE")
 BRD_PASSWD = os.getenv("BRD_PASSWD")
 BRD_SUPERPROXY = os.getenv("BRD_SUPERPROXY")
 CA_CERT_PATH = os.getenv("CA_CERT_PATH")
+
+#Load db data
+DB_NAME=os.getenv("DB_NAME")
+DB_USER=os.getenv("DB_USER")
+DB_PASSW=os.getenv("DB_PASSW")
+DB_HOST=os.getenv("DB_HOST")
 
 # File paths
 OFFSET_FILE = "offsets.json"
