@@ -18,6 +18,13 @@ from requests.adapters import HTTPAdapter, Retry
 
 from ..jobs import CompensationInterval, JobType
 
+from ...config import (
+    DB_NAME,
+    DB_USER,
+    DB_PASSW,
+    DB_HOST
+)
+
 
 def create_logger(name: str):
     logger = logging.getLogger(f"JobSpy:{name}")
@@ -294,10 +301,10 @@ def extract_job_type(description: str):
 def connect_db():
     try:
         connection = psycopg2.connect(
-            dbname="job_listings",
-            user="job_user",
-            password="your_password",  # Ensure this matches the actual password
-            host="localhost"
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSW,
+            host=DB_HOST
         )
         return connection
     except Exception as e:
