@@ -1,5 +1,7 @@
+import os
 import random
 import time
+import json
 from datetime import datetime, timedelta
 from config import (
     COUNTRIES, # Dictionary containing countries categorized for Indeed and Glassdoor
@@ -18,7 +20,7 @@ from config import (
     INTERVAL_SECONDS,  # Time interval (in seconds) between consecutive scraping runs
 )
 
-from proxy import get_proxy_url, test_proxy
+from proxy import get_proxy_url, test_proxy, validate_proxy_config
 from src.jobspy.scrapers.utils import load_offsets, save_offsets, connect_db, insert_unique_job_data, log_to_file
 from src.jobspy import scrape_jobs
 
@@ -27,6 +29,37 @@ jobs_added = 0
 # Jobs added in the current 24-hour period
 daily_job_count = 0  #ToDo fix issue of having more jobs than actual found ones within a 24 hour period in DAILY_JOB_COUNT_FILE - currently getting average
 last_log_date = None
+
+
+def initialize_missing_files():
+    """Ensure required JSON files are present or initialize them."""
+    default_files = {
+        "offsets.json": {},
+        "daily_job_counts.json": []
+    }
+    for file, default_content in default_files.items():
+        if not os.path.exists(file):
+            print(f"{file} not found. Initializing...")
+            with open(file, "w") as f:
+                json.dump(default_content, f, indent=4)
+            print("Missing files initialized successfully.")
+
+def validate_config():
+    """Validate essential configurations and paths."""
+    required_env_vars = ["BRD_USER", "BRD_ZONE", "BRD_PASSWD", "BRD_SUPERPROXY", "CA_CERT_PATH"]
+    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    if missing_vars:
+        raise EnvironmentError(f"Missing environment variables: {', '.join(missing_vars)}")
+
+    required_files = ["countries.json", "search_terms.json", "offsets.json", "daily_job_counts.json"]
+    for file in required_files:
+        if not os.path.exists(file):
+            if file == "offsets.json":  # Allow offsets to initialize if missing
+                print(f"{file} not found, initializing with default offsets...")
+                continue
+            raise FileNotFoundError(f"Required file not found: {file}")
+
+    print("Configuration validation passed.")
 
 
 def scrape_all_sites_and_countries():
@@ -140,22 +173,17 @@ def scrape_search_term(site, country, search_term, current_offset, no_results_co
             )
 
             # Process job results
-            if not process_job_results(jobs, country, site, search_term, offsets, results_wanted, no_results_count, connection):
-                print(f"Failed to process jobs for {search_term} on {site} in {country}")
-                return False  # Skip to next term if job results processing fails
-
-            print(f"Successfully processed jobs for {search_term} on {site} in {country}")
-            time.sleep(random.randint(1, 2))
-            retry_attempts = 3  # Exit retry loop if successful
+            if process_job_results(jobs, country, site, search_term, offsets, results_wanted, no_results_count, connection):
+                print(f"Successfully processed jobs for {search_term} on {site} in {country}")
+                return True  # Exit if successful
 
         except Exception as e:
             retry_attempts += 1
             print(f"Error scraping {site} for {country} at offset {current_offset}: {e}. Retrying...")
             time.sleep(3)
 
-    if retry_attempts == 3:
-        print(f"Maximum retry attempts reached for {search_term} on {site} in {country}")
-    return retry_attempts < 3
+    print(f"Maximum retry attempts reached for {search_term} on {site} in {country}")
+    return False  # Mark as failed if all retry attempts are exhausted
 
 
 def process_job_results(jobs, country, site, search_term, offsets, results_wanted, no_results_count, connection):
@@ -238,40 +266,76 @@ def summarize_session(session_start):
     log_to_file(summary, LOG_FILE)
 
 
-# def calculate_24_hour_average():
-#     """Calculate 24-hour average and save it to a summary file."""
-#     if not os.path.exists(DAILY_JOB_COUNT_FILE):
-#         print("No job data available.")
-#         return
-#
-#     # Read job counts
-#     with open(DAILY_JOB_COUNT_FILE, "r") as f:
-#         job_data = json.load(f)
-#
-#     now = datetime.now()
-#     cutoff = now - timedelta(hours=24)
-#     recent_jobs = [entry["count"] for entry in job_data if datetime.fromisoformat(entry["date"]) > cutoff]
-#     total_jobs = sum(recent_jobs)
-#     average_jobs = total_jobs / len(recent_jobs) if recent_jobs else 0
-#
-#     summary = {
-#         "timestamp": now.isoformat(),
-#         "rolling_24_hour_average": average_jobs,
-#         "total_jobs_last_24_hours": total_jobs,
-#     }
-#     log_to_file(f"Rolling 24-hour average: {average_jobs:.2f}, Total jobs: {total_jobs}", LOG_FILE)
+def monitor_24_hour_job_counts(start_time, daily_job_count_file):
+    """
+    Monitor and save the count of unique jobs added in a 24-hour timeframe.
+    Updates the DAILY_JOB_COUNT_FILE with the date range and count.
+
+    Parameters:
+    - start_time: datetime object representing when the script started.
+    - daily_job_count_file: str, the path to the JSON file where daily job counts are saved.
+    """
+    global jobs_added  # Access the global jobs_added
+
+    # Ensure the file exists
+    if not os.path.exists(daily_job_count_file):
+        with open(daily_job_count_file, "w") as f:
+            json.dump([], f, indent=4)
+
+    # Read existing data
+    with open(daily_job_count_file, "r") as f:
+        job_data = json.load(f)
+
+    # Calculate the 24-hour range
+    end_time = start_time + timedelta(hours=24)
+    now = datetime.now()
+
+    # If 24 hours have passed, record the count
+    if now >= end_time:
+        # Format the time range and count
+        date_range = (
+            f"{start_time.strftime('%Y-%m-%d %H:%M')} to {end_time.strftime('%Y-%m-%d %H:%M')}"
+        )
+        record = {
+            "date": date_range,
+            "count": jobs_added,
+        }
+
+        # Append the record to the existing data
+        job_data.append(record)
+
+        # Save the updated data back to the file
+        with open(daily_job_count_file, "w") as f:
+            json.dump(job_data, f, indent=4)
+
+        print(f"Recorded 24-hour job count: {record}")
+
+        # Reset the start time and job count for the next 24-hour period
+        start_time = now
+        jobs_added = 0  # Reset the global jobs_added
+
+    return start_time
 
 
 def run_scraping_loop():
     """Run the scraping loop for a specified number of runs."""
     print("Starting scraping loop...")  # Debug
+
+    # Initialize monitoring variables
+    script_start_time = datetime.now()
+
     for run_count in range(MAX_RUNS):
         print(f"Run {run_count + 1} of {MAX_RUNS}")
         try:
             # Test proxy connection
             if test_proxy(get_proxy_url(BRD_USER, BRD_ZONE, BRD_PASSWD, BRD_SUPERPROXY), CA_CERT_PATH):
                 print("Proxy test successful. Proceeding with scraping.")
-                scrape_all_sites_and_countries() # Main scraping function
+                scrape_all_sites_and_countries()  # Main scraping function
+
+                # Monitor and save 24-hour job counts
+                script_start_time = monitor_24_hour_job_counts(
+                    script_start_time, DAILY_JOB_COUNT_FILE
+                )
 
                 if run_count < MAX_RUNS - 1:  # Wait to spread out requests if not the last run
                     print(f"Waiting {INTERVAL_SECONDS / 60:.2f} minutes until next run...")
@@ -287,6 +351,21 @@ def run_scraping_loop():
 
 
 if __name__ == "__main__":
-    print("Starting the script...")
-    run_scraping_loop()
-    print("Script completed.")
+    try:
+        # Step 1: Ensure required files are initialized
+        initialize_missing_files()  # Create missing files like offsets.json and daily_job_counts.json
+
+        # Step 2: Validate configurations (environment variables and file paths)
+        validate_config()  # Check environment variables and other required files
+
+        # Step 3: Validate proxy and certificate configuration
+        proxy_url = get_proxy_url(BRD_USER, BRD_ZONE, BRD_PASSWD, BRD_SUPERPROXY)
+        validate_proxy_config(CA_CERT_PATH, proxy_url)
+
+        # Step 4: Start the scraping loop
+        run_scraping_loop()
+        print("Scraping loop completed successfully.")
+
+    except Exception as err:
+        print(f"Unexpected Error: {err}")
+        exit(1)
