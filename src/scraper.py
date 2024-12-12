@@ -19,14 +19,7 @@ from config import (
 )
 
 from proxy import get_proxy_url, test_proxy
-from jobspy.scrapers.utils import (
-    load_offsets,
-    save_offsets,
-    connect_db,
-    insert_unique_job_data,
-    log_to_file,
-    # clean_scraping_log,
-)
+from src.jobspy.scrapers.utils import load_offsets, save_offsets, connect_db, insert_unique_job_data, log_to_file
 from src.jobspy import scrape_jobs
 
 # Total jobs added to the db
@@ -216,8 +209,9 @@ def save_jobs_to_database(jobs, connection):
             print(f"Error: Failed to save job ID {job.get('id', 'Unknown')} due to {e}")
             continue  # Skip to the next job
 
+    if unique_jobs_added != 0:
+        print(f"Added {unique_jobs_added} unique jobs to the database.")
 
-    print(f"Added {unique_jobs_added} unique jobs to the database.")
     return unique_jobs_added
 
 
